@@ -1,0 +1,15 @@
+[Unit]
+Description=Bulkmailer Gunicorn
+After=network.target
+
+[Service]
+User=bulkmailer
+Group=www-data
+WorkingDirectory=/srv/bulkmailer
+ExecStart=/srv/bulkmailer/.venv/bin/gunicorn bulkmailer.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 60
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

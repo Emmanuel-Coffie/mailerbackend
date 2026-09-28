@@ -1,0 +1,598 @@
+{
+  "info": {
+    "name": "Bulkmailer backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run selected requests individually; send/test can deliver real email once configured. Do not run the full collection blindly."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "contact_id",
+      "value": ""
+    },
+    {
+      "key": "list_id",
+      "value": ""
+    },
+    {
+      "key": "template_id",
+      "value": ""
+    },
+    {
+      "key": "campaign_id",
+      "value": ""
+    },
+    {
+      "key": "test_email",
+      "value": ""
+    },
+    {
+      "key": "scheduled_at",
+      "value": "2026-10-05T09:00:00Z"
+    },
+    {
+      "key": "unsubscribe_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/auth/token/",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set(\"access_token\", data.access);",
+              "pm.collectionVariables.set(\"refresh_token\", data.refresh);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Refresh token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/auth/token/refresh/",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) pm.collectionVariables.set(\"access_token\", pm.response.json().access);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create contact",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/contacts/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"demo@example.com\",\n  \"first_name\": \"Demo\",\n  \"company\": \"Example\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"contact_id\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List contacts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/contacts/"
+      }
+    },
+    {
+      "name": "Get contact",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/contacts/{{contact_id}}/"
+      }
+    },
+    {
+      "name": "Update contact",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/contacts/{{contact_id}}/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notes\": \"Updated via API\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Delete contact",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/email/contacts/{{contact_id}}/"
+      }
+    },
+    {
+      "name": "Create list",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/lists/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Demo list\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"list_id\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List lists",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/lists/"
+      }
+    },
+    {
+      "name": "Get list",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/lists/{{list_id}}/"
+      }
+    },
+    {
+      "name": "Update list",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/lists/{{list_id}}/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Updated name\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Delete list",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/email/lists/{{list_id}}/"
+      }
+    },
+    {
+      "name": "Create template",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/templates/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Introduction\",\n  \"subject\": \"Hello {{first_name}}\",\n  \"text_content\": \"Welcome to {{company}}.\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"template_id\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List templates",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/templates/"
+      }
+    },
+    {
+      "name": "Get template",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/templates/{{template_id}}/"
+      }
+    },
+    {
+      "name": "Update template",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/templates/{{template_id}}/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Updated name\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Delete template",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/email/templates/{{template_id}}/"
+      }
+    },
+    {
+      "name": "Create campaign",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/campaigns/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Demo campaign\",\n  \"subject\": \"Hello {{first_name}}\",\n  \"text_content\": \"Welcome {{company}}\",\n  \"contact_lists\": [\n    \"{{list_id}}\"\n  ]\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"campaign_id\", pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List campaigns",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/"
+      }
+    },
+    {
+      "name": "Get campaign",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/"
+      }
+    },
+    {
+      "name": "Update campaign",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Updated name\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Delete campaign",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/"
+      }
+    },
+    {
+      "name": "add-contacts",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/lists/{{list_id}}/add-contacts/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contact_ids\": [\n    \"{{contact_id}}\"\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "remove-contacts",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/lists/{{list_id}}/remove-contacts/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contact_ids\": [\n    \"{{contact_id}}\"\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Preview template",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/templates/{{template_id}}/preview/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"first_name\": \"Ada\",\n  \"company\": \"Example\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Import contacts CSV",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/email/contacts/import/",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            },
+            {
+              "key": "contact_list_id",
+              "type": "text",
+              "value": "{{list_id}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Prepare campaign",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/prepare/"
+      }
+    },
+    {
+      "name": "Send campaign",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/send/"
+      }
+    },
+    {
+      "name": "Cancel campaign",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/cancel/"
+      }
+    },
+    {
+      "name": "Test campaign (live email)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/test/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{test_email}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Schedule campaign",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/schedule/",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_at\": \"{{scheduled_at}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Campaign analytics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/analytics/"
+      }
+    },
+    {
+      "name": "Campaign recipients",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/campaigns/{{campaign_id}}/recipients/"
+      }
+    },
+    {
+      "name": "Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/dashboard/"
+      }
+    },
+    {
+      "name": "Settings status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/settings/status/"
+      }
+    },
+    {
+      "name": "Unsubscribe",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/email/unsubscribe/{{unsubscribe_token}}/",
+        "auth": {
+          "type": "noauth"
+        }
+      }
+    },
+    {
+      "name": "Resend webhook (requires signed raw body)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{base_url}}/api/email/webhooks/resend/",
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Do not hand-edit a signed payload. Resend or the automated Svix tests supply the raw body and svix-id, svix-timestamp, svix-signature headers."
+      }
+    }
+  ]
+}

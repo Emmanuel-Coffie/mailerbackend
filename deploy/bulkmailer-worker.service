@@ -1,0 +1,14 @@
+[Unit]
+Description=Bulkmailer Celery worker
+After=network.target
+
+[Service]
+User=bulkmailer
+WorkingDirectory=/srv/bulkmailer
+ExecStart=/srv/bulkmailer/.venv/bin/celery -A bulkmailer worker -l info --concurrency=2
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

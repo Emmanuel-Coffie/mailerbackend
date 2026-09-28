@@ -1,0 +1,37 @@
+name: Backend tests
+on: [push, pull_request]
+jobs:
+  mysql-tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-root-only
+          MYSQL_DATABASE: bulkmailer
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -ptest-root-only"
+          --health-interval=10s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['6379:6379']
+    env:
+      SECRET_KEY: ci-only-django-signing-key-not-for-production-1234567890
+      DEBUG: 'True'
+      DATABASE_NAME: bulkmailer
+      DATABASE_USER: root
+      DATABASE_PASSWORD: test-root-only
+      DATABASE_HOST: 127.0.0.1
+      RESEND_FROM_EMAIL: sender@example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev pkg-config
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py migrate --noinput
+      - run: python manage.py test -v 2

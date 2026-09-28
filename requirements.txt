@@ -1,0 +1,11 @@
+Django>=5.2,<5.3
+djangorestframework>=3.16,<3.17
+djangorestframework-simplejwt>=5.5,<6
+django-filter>=25.1,<26
+django-cors-headers>=4.7,<5
+mysqlclient>=2.2,<3
+celery[redis]>=5.5,<6
+python-dotenv>=1.1,<2
+resend>=2.0,<3
+svix>=1.60,<2
+gunicorn>=23,<24; sys_platform != 'win32'

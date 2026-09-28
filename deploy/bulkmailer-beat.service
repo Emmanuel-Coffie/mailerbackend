@@ -1,0 +1,14 @@
+[Unit]
+Description=Bulkmailer Celery Beat (one instance)
+After=network.target
+
+[Service]
+User=bulkmailer
+WorkingDirectory=/srv/bulkmailer
+ExecStart=/srv/bulkmailer/.venv/bin/celery -A bulkmailer beat -l info
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
