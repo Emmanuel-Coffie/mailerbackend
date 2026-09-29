@@ -1,7 +1,7 @@
-# Bulkmailer backend
+# Mailflow — bulk email management
 
 A Django/DRF internal bulk email backend. MySQL is the application database;
-Redis brokers Celery work. There is no React frontend. Django Admin and the REST
+Redis brokers Celery work. The React/TypeScript frontend, Django Admin, and REST
 API support contact imports, lists, templates, preparation, test delivery,
 sending, scheduling, cancellation, suppression, and delivery history.
 
@@ -10,6 +10,7 @@ sending, scheduling, cancellation, suppression, and delivery history.
 ```text
 manage.py
 bulkmailer/             settings, URL routing, Celery, WSGI/ASGI
+frontend/               React, TypeScript, Vite, MUI, browser and unit tests
 mailing/
   models.py             contacts, lists, campaigns, recipients, events, opt-outs
   admin.py              admin pages, CSV form, test email form, campaign actions
@@ -34,6 +35,7 @@ requirements-lock.txt   exact locally tested dependency versions
 ## Requirements
 
 - Python 3.12 recommended (the project uses Django 5.2 LTS).
+- Node.js 22.12+ and npm for the frontend.
 - MySQL 8.4 recommended, with an InnoDB/utf8mb4 database.
 - Redis 7.x.
 - Linux or WSL2 for production Celery/Gunicorn. Native Windows can run Django;
@@ -124,7 +126,7 @@ Every supported application variable is in `.env.example`:
 - `RESEND_FROM_EMAIL`: valid address at your verified sending domain.
 - `RESEND_FROM_NAME`: optional sender display name.
 - `RESEND_REPLY_TO`: optional reply address.
-- `FRONTEND_URL`: allowed future frontend origin, default `http://localhost:3000`.
+- `FRONTEND_URL`: allowed frontend origin, default `http://localhost:5173`.
 - `BACKEND_URL`: public backend base URL used in unsubscribe links; default
   `http://localhost:8000`. Use an externally reachable HTTPS URL in production.
 - `DEFAULT_TIMEZONE`: default `UTC`; API schedules accept timezone-aware ISO dates.
@@ -167,6 +169,34 @@ celery -A bulkmailer worker -l info --pool=solo
 Run one Beat instance. Its periodic task claims due schedules with row locks and
 also recovers queued/stalled work after five minutes. Celery task discovery uses
 `mailing.tasks.send_campaign` and `mailing.tasks.dispatch_due_campaigns`.
+
+## Run the frontend
+
+With Django running on port 8000, open another terminal:
+
+```powershell
+cd frontend
+npm.cmd ci
+Copy-Item .env.example .env.local
+npm.cmd run dev
+```
+
+Open `http://localhost:5173` and use the Django staff/superuser account created
+above. Use `localhost` consistently: CORS allows exactly `FRONTEND_URL`.
+On Linux/macOS use `npm` and `cp .env.example .env.local`. The only frontend
+environment variable is `VITE_API_BASE_URL`; never put provider keys in it.
+JWT tokens are kept in memory; refreshing the browser requires signing in again.
+
+Start with Contacts → Import CSV, create a Contact List, then a Template and
+Campaign. The seven-step wizard saves a real backend draft, prepares recipients,
+offers a test email, and confirms the server's eligible count before sending or
+scheduling. Active campaign details poll every six seconds. Settings displays
+configuration status only; change actual credentials in the backend environment.
+
+See `frontend/README.md` for frontend tests and `frontend/BACKEND_INTEGRATION.md`
+for API contracts and integration limits. For an isolated browser test without
+MySQL/Redis or live sending, run `npm.cmd run test:e2e` after installing Playwright
+Chromium with `npx.cmd playwright install chromium` from `frontend/`.
 
 ## Resend setup (manual)
 
@@ -370,6 +400,9 @@ gunicorn bulkmailer.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout
 ```
 
 Install the three example systemd units from `deploy/`, adapting user/path values.
+Build the frontend with `npm ci && npm run build` inside `frontend/`, setting
+`VITE_API_BASE_URL` to the public backend HTTPS origin before the build. The Nginx
+example serves `frontend/dist` with SPA route fallback and proxies API/admin.
 Replace the host/certificate/static paths in `deploy/nginx.conf`, obtain a valid
 TLS certificate using your hosting provider or ACME tooling, test with `nginx -t`,
 then enable the proxy. Do not expose Gunicorn directly when trusting proxy headers.
