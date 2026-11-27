@@ -96,6 +96,12 @@ class Campaign(Timestamped):
     def __str__(self):
         return self.name
 
+class CampaignAttachment(Timestamped):
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='attachments')
+    filename = models.CharField(max_length=255)
+    content = models.BinaryField()
+    size = models.PositiveIntegerField()
+
 class CampaignRecipient(Timestamped):
     campaign = models.ForeignKey(Campaign, on_delete=models.PROTECT, related_name='recipients')
     contact = models.ForeignKey(Contact, on_delete=models.PROTECT)

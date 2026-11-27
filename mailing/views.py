@@ -8,7 +8,7 @@ from rest_framework.decorators import action, api_view, authentication_classes, 
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from .models import Contact, ContactList, Campaign, EmailTemplate, CampaignRecipient
+from .models import Contact, ContactList, Campaign, EmailTemplate, CampaignRecipient, CampaignAttachment
 from .serializers import (ContactSerializer, ContactListSerializer, CampaignSerializer, EmailTemplateSerializer,
                           RecipientSerializer, ContactIDsSerializer, ScheduleSerializer, TestEmailSerializer)
 from .services import (prepare_campaign, queue_campaign, schedule_campaign, cancel_campaign, import_contacts,
@@ -84,6 +84,32 @@ class CampaignViewSet(SafeDestroyMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'subject']
     filterset_fields = ['status']
     ordering_fields = ['created_at', 'scheduled_at', 'name']
+
+    @action(detail=True, methods=['get', 'post'])
+    @transaction.atomic
+    def attachments(self, request, pk=None):
+        campaign = Campaign.objects.select_for_update().get(pk=self.get_object().pk)
+        if request.method == 'POST':
+            require_draft(campaign)
+            upload = request.FILES.get('file')
+            if not upload or not 0 < upload.size <= 3 * 1024 * 1024:
+                raise ValidationError('Choose a non-empty file up to 3 MB.')
+            current = campaign.attachments.aggregate(total=Sum('size'))['total'] or 0
+            if campaign.attachments.count() >= 5 or current + upload.size > 8 * 1024 * 1024:
+                raise ValidationError('Use at most 5 attachments, totalling 8 MB.')
+            filename = upload.name.replace('\\', '/').rsplit('/', 1)[-1].replace('\r', '').replace('\n', '')
+            if not filename or len(filename) > 255:
+                raise ValidationError('Use a filename of 1 to 255 characters.')
+            CampaignAttachment.objects.create(campaign=campaign, filename=filename, size=upload.size, content=upload.read())
+        return Response(list(campaign.attachments.values('id', 'filename', 'size')))
+
+    @action(detail=True, methods=['delete'], url_path=r'attachments/(?P<attachment_id>[0-9]+)')
+    @transaction.atomic
+    def remove_attachment(self, request, pk=None, attachment_id=None):
+        campaign = Campaign.objects.select_for_update().get(pk=self.get_object().pk)
+        require_draft(campaign)
+        get_object_or_404(CampaignAttachment, pk=attachment_id, campaign=campaign).delete()
+        return Response(status=204)
 
     def filter_queryset(self, queryset):
         # Recipient filters belong to the nested recipient collection.

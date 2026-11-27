@@ -268,6 +268,12 @@ def build_payload(campaign, email, data, unsubscribe_url=None):
         if not has_text_link:
             content['text'] += '\n\nUnsubscribe: ' + unsubscribe_url
     payload = {'from': formataddr((campaign.from_name, campaign.from_email)), 'to': [email], **content}
+    if campaign.pk:
+        import base64
+        attachments = [{'filename': item.filename, 'content': base64.b64encode(bytes(item.content)).decode('ascii')}
+                       for item in campaign.attachments.all()]
+        if attachments:
+            payload['attachments'] = attachments
     if campaign.reply_to:
         payload['reply_to'] = campaign.reply_to
     if unsubscribe_url:
