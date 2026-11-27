@@ -43,7 +43,7 @@ class ContactViewSet(SafeDestroyMixin, viewsets.ModelViewSet):
         upload = request.FILES.get('file')
         if not upload:
             raise ValidationError('Provide a CSV in the file field (multipart/form-data).')
-        return Response(import_contacts(upload, request.data.get('contact_list_id')))
+        return Response(import_contacts(upload, request.data.get('contact_list_id'), request.data.get('group_by', 'auto'), request.data.get('preview') == 'true'))
 
 class ContactListViewSet(SafeDestroyMixin, viewsets.ModelViewSet):
     queryset = ContactList.objects.all()
@@ -179,5 +179,9 @@ def settings_status(request):
 @permission_classes([AllowAny])
 def unsubscribe(request, token):
     get_object_or_404(CampaignRecipient, unsubscribe_token=token)
+    if request.method == 'GET' and 'text/html' in request.META.get('HTTP_ACCEPT', ''):
+        from django.shortcuts import redirect
+        from urllib.parse import quote
+        return redirect(settings.FRONTEND_URL + '/unsubscribe/' + quote(token, safe=''))
     unsubscribe_recipient(token)
     return Response({'detail': 'You have been unsubscribed. You will receive no further marketing emails.'})

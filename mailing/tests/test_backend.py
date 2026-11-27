@@ -83,7 +83,7 @@ class BackendTests(BackendFixture, TestCase):
         upload = SimpleUploadedFile('contacts.csv', b'email,first_name\none@example.com,Existing\nNEW@example.com,New\nnew@example.com,Duplicate\nbad,Bad\n')
         result = self.client.post('/api/email/contacts/import/', {'file': upload, 'contact_list_id': self.list.pk})
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.data, {'total': 4, 'valid': 2, 'invalid': 1, 'duplicates': 1, 'existing': 1, 'imported': 1})
+        self.assertEqual({key: result.data[key] for key in ('total', 'valid', 'invalid', 'duplicates', 'existing', 'imported')}, {'total': 4, 'valid': 2, 'invalid': 1, 'duplicates': 1, 'existing': 1, 'imported': 1})
         self.assertEqual(self.list.contacts.count(), 2)
 
     @override_settings(CSV_MAX_BYTES=10)
