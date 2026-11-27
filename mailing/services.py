@@ -140,46 +140,66 @@ def cancel_campaign(campaign_id):
     campaign.save(update_fields=['status', 'updated_at'])
     return campaign
 
-def import_contacts(upload, contact_list_id=None):
-    if not upload.name.lower().endswith('.csv') or upload.size > settings.CSV_MAX_BYTES:
-        raise ValidationError('Upload a CSV within CSV_MAX_BYTES.')
+@transaction.atomic
+def import_contacts(upload, contact_list_id=None, group_by='auto', preview=False):
+    from .imports import read_contacts
+    import re
+    if group_by not in ('auto', 'group', 'company', 'position', 'sheet', 'none'):
+        raise ValidationError('Choose a supported grouping option.')
     target = None
     if contact_list_id:
         try:
             target = ContactList.objects.get(pk=int(contact_list_id))
         except (ValueError, TypeError, ContactList.DoesNotExist):
             raise ValidationError('Invalid contact_list_id.')
-    try:
-        reader = csv.DictReader(io.StringIO(upload.read().decode('utf-8-sig')), strict=True)
-        if not reader.fieldnames or 'email' not in reader.fieldnames:
-            raise ValidationError('CSV must have an email header.')
-        rows = list(reader)
-    except (UnicodeDecodeError, csv.Error):
-        raise ValidationError('CSV must be valid UTF-8 with valid quoting.')
+    rows, detected = read_contacts(upload)
     counts = dict.fromkeys(('total', 'valid', 'invalid', 'duplicates', 'existing', 'imported'), 0)
-    seen = set()
-    for row in rows:
+    seen, groups, errors = set(), {}, []
+    prepared = []
+    for index, row in enumerate(rows, 2):
         counts['total'] += 1
-        values = {field: (row.get(field) or '').strip() for field in ('email', 'first_name', 'last_name', 'company', 'phone', 'position')}
+        values = {field: row.get(field, '') for field in ('email', 'first_name', 'last_name', 'company', 'phone', 'position')}
         values['email'] = values['email'].lower()
-        candidate = Contact(**values, source='csv')
         try:
-            candidate.full_clean(validate_unique=False)
+            Contact(**values, source='spreadsheet').full_clean(validate_unique=False)
         except DjangoValidationError:
             counts['invalid'] += 1
+            if len(errors) < 20:
+                errors.append({'row': index, 'sheet': row.get('_sheet') or 'CSV', 'message': 'Invalid email or contact field exceeds its length limit.'})
             continue
-        if values['email'] in seen:
+        duplicate = values['email'] in seen
+        if duplicate:
             counts['duplicates'] += 1
-            continue
-        seen.add(values['email'])
-        counts['valid'] += 1
-        with transaction.atomic():
-            contact, created = Contact.objects.get_or_create(email=values.pop('email'), defaults={**values, 'source': 'csv'})
-            counts['imported' if created else 'existing'] += 1
+        else:
+            seen.add(values['email'])
+            counts['valid'] += 1
+        selected = group_by
+        if selected == 'auto':
+            selected = 'group' if row.get('group') else 'company' if row.get('company') else 'sheet'
+        raw = row.get('_sheet' if selected == 'sheet' else selected, '') if selected != 'none' else ''
+        names = [name.strip() for name in re.split(r'[;,|]', raw) if name.strip()] if selected == 'group' else ([raw] if raw else [])
+        if any(len(name) > 255 for name in names):
+            raise ValidationError('Group names must be 255 characters or fewer.')
+        for name in names:
+            groups.setdefault(name, set()).add(values['email'])
+        if len(groups) > 200:
+            raise ValidationError('This import would create more than 200 groups. Choose another grouping option.')
+        prepared.append((values, names, duplicate))
+    existing = set(Contact.objects.filter(email__in=seen).values_list('email', flat=True))
+    counts['existing'] = len(existing)
+    counts['imported'] = len(seen - existing)
+    if not preview:
+        group_objects = {}
+        for name in groups:
+            group_objects[name] = ContactList.objects.filter(name__iexact=name).order_by('id').first() or ContactList.objects.create(name=name, description='Created from a contact import')
+        for values, names, duplicate in prepared:
+            contact, _ = Contact.objects.get_or_create(email=values['email'], defaults={**{k: v for k, v in values.items() if k != 'email'}, 'source': 'spreadsheet'})
             if target:
                 target.contacts.add(contact)
-    logger.info('CSV import counts=%s', counts)
-    return counts
+            for name in names:
+                group_objects[name].contacts.add(contact)
+    return {**counts, 'preview': preview, 'detected_columns': detected,
+            'groups': [{'name': name, 'contacts': len(emails)} for name, emails in groups.items()], 'errors': errors}
 
 class DeliveryError(Exception):
     def __init__(self, message, temporary=False):
@@ -227,14 +247,26 @@ class EmailService:
         return self.send_email(build_payload(campaign, address, data), key)
 
 def build_payload(campaign, email, data, unsubscribe_url=None):
-    content = render_content(campaign.subject, campaign.html_content, campaign.text_content, data)
+    import re
+    html = campaign.html_content or ''
+    text = campaign.text_content or ''
+    marker = r'{{\s*unsubscribe_url\s*}}'
+    has_html_link = bool(re.search(marker, html))
+    has_text_link = bool(re.search(marker, text))
+    destination = unsubscribe_url or settings.FRONTEND_URL + '/unsubscribe/preview'
+    html = re.sub(marker, lambda _: escape(destination, quote=True), html)
+    text = re.sub(marker, lambda _: destination, text)
+    content = render_content(campaign.subject, html, text, data)
     if unsubscribe_url:
         if not content['html']:
             content['html'] = '<div style="white-space: pre-wrap">' + escape(content['text']) + '</div>'
         if not content['text']:
             content['text'] = unescape(strip_tags(content['html']))
-        content['html'] += '<p>Don\'t want to receive these emails? <a href="' + escape(unsubscribe_url, quote=True) + '">Unsubscribe</a></p>'
-        content['text'] += '\n\nUnsubscribe: ' + unsubscribe_url
+        if not has_html_link:
+            footer = '<p style="text-align:center;font:13px Arial;color:#627175;padding:24px">Don\'t want to receive these emails? <a href="' + escape(unsubscribe_url, quote=True) + '">Unsubscribe</a></p>'
+            content['html'] = content['html'].replace('</body>', footer + '</body>') if '</body>' in content['html'] else content['html'] + footer
+        if not has_text_link:
+            content['text'] += '\n\nUnsubscribe: ' + unsubscribe_url
     payload = {'from': formataddr((campaign.from_name, campaign.from_email)), 'to': [email], **content}
     if campaign.reply_to:
         payload['reply_to'] = campaign.reply_to

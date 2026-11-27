@@ -9,3 +9,5 @@ CELERY_RESULT_BACKEND = 'cache+memory://'
 RESEND_API_KEY = ''
 RESEND_FROM_EMAIL = 'sender@example.com'
 SECURE_SSL_REDIRECT = False
+
+STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}}
